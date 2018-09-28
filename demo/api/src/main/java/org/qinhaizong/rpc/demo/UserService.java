@@ -2,6 +2,9 @@ package org.qinhaizong.rpc.demo;
 
 import java.util.List;
 
+/**
+ * @author haizongqin
+ */
 public interface UserService {
 
     void save(User user);

@@ -7,40 +7,16 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-
+/**
+ * @author haizongqin
+ */
 @SpringBootApplication
 public class Application {
 
     @RpcProvider
     @Bean
     public UserService userService() {
-        return new UserService() {
-
-            @Override
-            public void save(User user) {
-                System.out.println("**************");
-            }
-
-            @Override
-            public List<User> findAll() {
-                return Collections.singletonList(new User());
-            }
-
-            @Override
-            public User findUserById(String id) {
-                User user = new User();
-                user.setId(UUID.randomUUID().toString());
-                return user;
-            }
-
-            @Override
-            public User findUserByIdAndName(String id, String name) {
-                return findUserById(id);
-            }
-        };
+        return new UserServiceImpl();
     }
 
     @Bean
