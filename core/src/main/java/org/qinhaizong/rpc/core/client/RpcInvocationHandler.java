@@ -1,6 +1,9 @@
 package org.qinhaizong.rpc.core.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.qinhaizong.rpc.core.serializer.JacksonJsonSerializer;
+import org.qinhaizong.rpc.core.serializer.Serializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,6 +18,8 @@ import java.util.Objects;
  */
 public class RpcInvocationHandler implements InvocationHandler {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RpcInvocationHandler.class);
+
     private final String serviceUrl;
 
     public RpcInvocationHandler(String serviceUrl) {
@@ -24,29 +29,32 @@ public class RpcInvocationHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         String url = new StringBuilder().append(serviceUrl).append("/").append(method.getDeclaringClass().getCanonicalName()).append("/").append(method.getName()).toString();
+        LOGGER.info("> curl -XPOST '{}'", url);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setRequestMethod("POST");
         connection.setDoInput(true);
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Accept", "application/json");
-        ObjectMapper objectMapper = new ObjectMapper();
+        Serializer serializer = new JacksonJsonSerializer();
         if (Objects.nonNull(args) && args.length > 0) {
             try (OutputStream os = connection.getOutputStream()) {
                 if (args.length == 1) {
-                    objectMapper.writeValue(os, args[0]);
+                    serializer.serialize(args[0], os);
                 }
                 if (args.length > 1) {
-                    objectMapper.writeValue(os, args);
+                    serializer.serialize(args, os);
                 }
                 os.flush();
             }
         }
+        int responseCode = connection.getResponseCode();
+        LOGGER.info("< {}", responseCode);
         Object value = null;
         Class<?> returnType = method.getReturnType();
         if (!Void.class.getSimpleName().equalsIgnoreCase(returnType.getName())) {
             try (InputStream in = connection.getInputStream()) {
-                value = objectMapper.readValue(in, returnType);
+                value = serializer.deserialize(in, returnType);
             }
         }
         return value;

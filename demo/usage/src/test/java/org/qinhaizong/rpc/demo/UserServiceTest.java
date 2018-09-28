@@ -26,11 +26,9 @@ public class UserServiceTest {
 
     @Test
     public void findAll() {
-        for (int i = 0; i < 10; i++) {
-            List<User> all = userService.findAll();
-            LOGGER.info("{}", all);
-            Assert.assertNotNull(all);
-        }
+        List<User> all = userService.findAll();
+        LOGGER.info("{}", all);
+        Assert.assertNotNull(all);
     }
 
     @Test

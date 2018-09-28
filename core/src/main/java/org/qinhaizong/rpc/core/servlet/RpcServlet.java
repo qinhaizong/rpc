@@ -1,17 +1,20 @@
 package org.qinhaizong.rpc.core.servlet;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.type.ArrayType;
+import org.qinhaizong.rpc.core.serializer.JacksonJsonSerializer;
+import org.qinhaizong.rpc.core.serializer.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.WebApplicationContext;
+import sun.reflect.generics.reflectiveObjects.GenericArrayTypeImpl;
 
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Map;
@@ -68,27 +71,30 @@ public class RpcServlet implements Servlet {
         if (Objects.isNull(objectMethod)) {
             throw new UnsupportedOperationException("Unsupported request uri.");
         }
-        ObjectMapper mapper = new ObjectMapper();
+        Serializer serializer = new JacksonJsonSerializer();
         Method method = objectMethod.getMethod();
         Class<?>[] types = method.getParameterTypes();
         Object target = objectMethod.getObject();
-        Object invokeMethod;
-        switch (types.length) {
-            case 0:
-                invokeMethod = ReflectionUtils.invokeMethod(method, target);
-                break;
-            case 1:
-                Object arg = mapper.readValue(req.getInputStream(), types[0]);
-                invokeMethod = ReflectionUtils.invokeMethod(method, target, arg);
-                break;
-            default:
-                ArrayType type = mapper.getTypeFactory().constructArrayType(Object.class);
-                Object[] args = mapper.readValue(req.getInputStream(), type);
-                invokeMethod = ReflectionUtils.invokeMethod(method, target, args);
-                break;
+        Object returnValue;
+        try (InputStream in = req.getInputStream()) {
+            switch (types.length) {
+                case 0:
+                    returnValue = ReflectionUtils.invokeMethod(method, target);
+                    break;
+                case 1:
+                    Object arg = serializer.deserialize(in, types[0]);
+                    returnValue = ReflectionUtils.invokeMethod(method, target, arg);
+                    break;
+                default:
+                    Object[] args = serializer.deserialize(in, GenericArrayTypeImpl.make(Object.class));
+                    returnValue = ReflectionUtils.invokeMethod(method, target, args);
+                    break;
+            }
         }
-        if (Objects.nonNull(invokeMethod)) {
-            mapper.writeValue(res.getWriter(), invokeMethod);
+        if (Objects.nonNull(returnValue)) {
+            try (OutputStream os = res.getOutputStream()) {
+                serializer.serialize(returnValue, os);
+            }
         }
     }
 
