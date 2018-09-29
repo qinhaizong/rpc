@@ -36,7 +36,6 @@ public class RpcInvocationHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         String url = new StringBuilder().append(serviceUrl).append("/").append(builder.getName(method)).toString();
-        LOGGER.info("> curl -XPOST '{}'", url);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setRequestMethod("POST");
         connection.setDoInput(true);
@@ -45,6 +44,7 @@ public class RpcInvocationHandler implements InvocationHandler {
         Serializer serializer = messageConverter.getSerializer();
         connection.setRequestProperty("Content-Type", mimeType);
         connection.setRequestProperty("Accept", mimeType);
+        LOGGER.info("> curl -XPOST '{}' -H'Content-Type:{}' -H'Accept:{}'", url, mimeType, mimeType);
         if (Objects.nonNull(args) && args.length > 0) {
             try (OutputStream os = connection.getOutputStream()) {
                 if (args.length == 1) {
