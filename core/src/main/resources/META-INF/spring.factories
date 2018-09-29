@@ -1,2 +1,2 @@
-org.qinhaizong.rpc.core.serializer.Serializer=org.qinhaizong.rpc.core.serializer.JacksonJsonSerializer
+org.qinhaizong.rpc.core.converter.MessageConverter=org.qinhaizong.rpc.core.converter.Jackson2MessageConverter
 org.qinhaizong.rpc.core.name.NameBuilder=org.qinhaizong.rpc.core.name.ClassMethodNameBuilder

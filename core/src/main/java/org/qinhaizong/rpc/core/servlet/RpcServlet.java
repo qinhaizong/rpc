@@ -1,5 +1,6 @@
 package org.qinhaizong.rpc.core.servlet;
 
+import org.qinhaizong.rpc.core.converter.MessageConverter;
 import org.qinhaizong.rpc.core.name.NameBuilder;
 import org.qinhaizong.rpc.core.serializer.Serializer;
 import org.slf4j.Logger;
@@ -33,7 +34,7 @@ public class RpcServlet implements Servlet {
 
     private NameBuilder builder = SpringFactoriesLoader.loadFactories(NameBuilder.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
-    private Serializer serializer = SpringFactoriesLoader.loadFactories(Serializer.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+    private MessageConverter messageConverter = SpringFactoriesLoader.loadFactories(MessageConverter.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
     @Override
     public void init(ServletConfig config) throws ServletException {
@@ -78,6 +79,11 @@ public class RpcServlet implements Servlet {
         if (Objects.isNull(objectMethod)) {
             throw new UnsupportedOperationException("Unsupported request uri.");
         }
+        String contentType = request.getContentType();
+        if (!messageConverter.getMimeType().equals(contentType)) {
+            throw new UnsupportedOperationException("Unsupported Content-Type : " + contentType);
+        }
+        Serializer serializer = messageConverter.getSerializer();
         Method method = objectMethod.getMethod();
         Class<?>[] types = method.getParameterTypes();
         Object target = objectMethod.getObject();

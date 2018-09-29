@@ -1,5 +1,6 @@
 package org.qinhaizong.rpc.core.client;
 
+import org.qinhaizong.rpc.core.converter.MessageConverter;
 import org.qinhaizong.rpc.core.name.NameBuilder;
 import org.qinhaizong.rpc.core.serializer.Serializer;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class RpcInvocationHandler implements InvocationHandler {
 
     private NameBuilder builder = SpringFactoriesLoader.loadFactories(NameBuilder.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
-    private Serializer serializer = SpringFactoriesLoader.loadFactories(Serializer.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+    private MessageConverter messageConverter = SpringFactoriesLoader.loadFactories(MessageConverter.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
     public RpcInvocationHandler(String serviceUrl) {
         this.serviceUrl = serviceUrl;
@@ -40,8 +41,10 @@ public class RpcInvocationHandler implements InvocationHandler {
         connection.setRequestMethod("POST");
         connection.setDoInput(true);
         connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setRequestProperty("Accept", "application/json");
+        String mimeType = messageConverter.getMimeType();
+        Serializer serializer = messageConverter.getSerializer();
+        connection.setRequestProperty("Content-Type", mimeType);
+        connection.setRequestProperty("Accept", mimeType);
         if (Objects.nonNull(args) && args.length > 0) {
             try (OutputStream os = connection.getOutputStream()) {
                 if (args.length == 1) {
