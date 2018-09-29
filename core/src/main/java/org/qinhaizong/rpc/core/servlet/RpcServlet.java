@@ -1,10 +1,12 @@
 package org.qinhaizong.rpc.core.servlet;
 
-import org.qinhaizong.rpc.core.serializer.JacksonJsonSerializer;
+import org.qinhaizong.rpc.core.name.NameBuilder;
 import org.qinhaizong.rpc.core.serializer.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
+import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.WebApplicationContext;
@@ -29,6 +31,10 @@ public class RpcServlet implements Servlet {
 
     private Map<String, ObjectMethod> map;
 
+    private NameBuilder builder = SpringFactoriesLoader.loadFactories(NameBuilder.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+
+    private Serializer serializer = SpringFactoriesLoader.loadFactories(Serializer.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+
     @Override
     public void init(ServletConfig config) throws ServletException {
         WebApplicationContext context = getWebApplicationContext(config.getServletContext());
@@ -43,12 +49,12 @@ public class RpcServlet implements Servlet {
                 }
                 return null;
             }).filter(Objects::nonNull)
-                    .flatMap(i -> Arrays.stream(i.getDeclaredMethods()))
-                    .collect(Collectors.toMap(m -> m.getDeclaringClass().getCanonicalName() + "/" + m.getName(), m -> {
-                        Class<?> clazz = m.getDeclaringClass();
-                        Method method = BeanUtils.findDeclaredMethod(clazz, m.getName(), m.getParameterTypes());
-                        return new ObjectMethod(context.getBean(clazz), method);
-                    }));
+            .flatMap(i -> Arrays.stream(i.getDeclaredMethods()))
+            .collect(Collectors.toMap(builder::getName, m -> {
+                Class<?> clazz = m.getDeclaringClass();
+                Method method = BeanUtils.findDeclaredMethod(clazz, m.getName(), m.getParameterTypes());
+                return new ObjectMethod(context.getBean(clazz), method);
+            }));
             //@formatter:on
             LOGGER.info("beans: {}", map);
         }
@@ -65,13 +71,13 @@ public class RpcServlet implements Servlet {
         if (!"POST".equalsIgnoreCase(request.getMethod())) {
             throw new UnsupportedOperationException("Unsupported request method.");
         }
-        String classMethod = Arrays.stream(request.getRequestURI().split("/")).filter(StringUtils::hasText).collect(Collectors.joining("/"));
+        String requestURI = request.getRequestURI();
+        String classMethod = Arrays.stream(requestURI.split("/")).filter(StringUtils::hasText).collect(Collectors.joining("/"));
         LOGGER.info("class method {}", classMethod);
         ObjectMethod objectMethod = map.get(classMethod);
         if (Objects.isNull(objectMethod)) {
             throw new UnsupportedOperationException("Unsupported request uri.");
         }
-        Serializer serializer = new JacksonJsonSerializer();
         Method method = objectMethod.getMethod();
         Class<?>[] types = method.getParameterTypes();
         Object target = objectMethod.getObject();

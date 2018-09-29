@@ -1,9 +1,11 @@
 package org.qinhaizong.rpc.core.client;
 
-import org.qinhaizong.rpc.core.serializer.JacksonJsonSerializer;
+import org.qinhaizong.rpc.core.name.NameBuilder;
 import org.qinhaizong.rpc.core.serializer.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.util.ClassUtils;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -22,13 +24,17 @@ public class RpcInvocationHandler implements InvocationHandler {
 
     private final String serviceUrl;
 
+    private NameBuilder builder = SpringFactoriesLoader.loadFactories(NameBuilder.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+
+    private Serializer serializer = SpringFactoriesLoader.loadFactories(Serializer.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+
     public RpcInvocationHandler(String serviceUrl) {
         this.serviceUrl = serviceUrl;
     }
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        String url = new StringBuilder().append(serviceUrl).append("/").append(method.getDeclaringClass().getCanonicalName()).append("/").append(method.getName()).toString();
+        String url = new StringBuilder().append(serviceUrl).append("/").append(builder.getName(method)).toString();
         LOGGER.info("> curl -XPOST '{}'", url);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setRequestMethod("POST");
@@ -36,7 +42,6 @@ public class RpcInvocationHandler implements InvocationHandler {
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Accept", "application/json");
-        Serializer serializer = new JacksonJsonSerializer();
         if (Objects.nonNull(args) && args.length > 0) {
             try (OutputStream os = connection.getOutputStream()) {
                 if (args.length == 1) {
@@ -57,6 +62,7 @@ public class RpcInvocationHandler implements InvocationHandler {
                 value = serializer.deserialize(in, returnType);
             }
         }
+        connection.disconnect();
         return value;
     }
 

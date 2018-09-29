@@ -21,8 +21,7 @@ public class Application {
 
     @Bean
     public ServletRegistrationBean servletRegistrationBean() {
-        ServletRegistrationBean bean = new ServletRegistrationBean(new RpcServlet(), "/org.qinhaizong.rpc.demo.UserService/*");
-        bean.addInitParameter("beanNames", "userService");
+        ServletRegistrationBean bean = new ServletRegistrationBean(new RpcServlet(), "/*");
         bean.addInitParameter("interfaces", "org.qinhaizong.rpc.demo.UserService");
         return bean;
     }
