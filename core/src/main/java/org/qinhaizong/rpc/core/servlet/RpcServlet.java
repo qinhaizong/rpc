@@ -15,11 +15,13 @@ import sun.reflect.generics.reflectiveObjects.GenericArrayTypeImpl;
 
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -34,7 +36,7 @@ public class RpcServlet implements Servlet {
 
     private NameBuilder builder = SpringFactoriesLoader.loadFactories(NameBuilder.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
-    private MessageConverter messageConverter = SpringFactoriesLoader.loadFactories(MessageConverter.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
+    private MessageConverter converter = SpringFactoriesLoader.loadFactories(MessageConverter.class, ClassUtils.getDefaultClassLoader()).stream().findFirst().get();
 
     @Override
     public void init(ServletConfig config) throws ServletException {
@@ -59,6 +61,9 @@ public class RpcServlet implements Servlet {
             //@formatter:on
             LOGGER.info("beans: {}", map);
         }
+        if (Objects.isNull(map)) {
+            map = Collections.EMPTY_MAP;
+        }
     }
 
     @Override
@@ -69,44 +74,37 @@ public class RpcServlet implements Servlet {
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         HttpServletRequest request = (HttpServletRequest) req;
-        if (!"POST".equalsIgnoreCase(request.getMethod())) {
-            throw new UnsupportedOperationException("Unsupported request method.");
-        }
-        String requestURI = request.getRequestURI();
-        String classMethod = Arrays.stream(requestURI.split("/")).filter(StringUtils::hasText).collect(Collectors.joining("/"));
-        LOGGER.info("class method {}", classMethod);
+        HttpServletResponse response = (HttpServletResponse) res;
+        String classMethod = Arrays.stream(request.getRequestURI().split("/")).filter(StringUtils::hasText).collect(Collectors.joining("/"));
         ObjectMethod objectMethod = map.get(classMethod);
-        if (Objects.isNull(objectMethod)) {
-            throw new UnsupportedOperationException("Unsupported request uri.");
-        }
-        String contentType = request.getContentType();
-        if (!messageConverter.getMimeType().equals(contentType)) {
-            throw new UnsupportedOperationException("Unsupported Content-Type : " + contentType);
-        }
-        Serializer serializer = messageConverter.getSerializer();
-        Method method = objectMethod.getMethod();
-        Class<?>[] types = method.getParameterTypes();
-        Object target = objectMethod.getObject();
-        Object returnValue;
-        try (InputStream in = req.getInputStream()) {
-            switch (types.length) {
-                case 0:
-                    returnValue = ReflectionUtils.invokeMethod(method, target);
-                    break;
-                case 1:
-                    Object arg = serializer.deserialize(in, types[0]);
-                    returnValue = ReflectionUtils.invokeMethod(method, target, arg);
-                    break;
-                default:
-                    Object[] args = serializer.deserialize(in, GenericArrayTypeImpl.make(Object.class));
-                    returnValue = ReflectionUtils.invokeMethod(method, target, args);
-                    break;
+        if ("POST".equalsIgnoreCase(request.getMethod()) && converter.getMimeType().equals(request.getContentType()) && Objects.nonNull(objectMethod)) {
+            Serializer serializer = converter.getSerializer();
+            Method method = objectMethod.getMethod();
+            Class<?>[] types = method.getParameterTypes();
+            Object target = objectMethod.getObject();
+            Object returnValue;
+            try (InputStream in = req.getInputStream()) {
+                switch (types.length) {
+                    case 0:
+                        returnValue = ReflectionUtils.invokeMethod(method, target);
+                        break;
+                    case 1:
+                        Object arg = serializer.deserialize(in, types[0]);
+                        returnValue = ReflectionUtils.invokeMethod(method, target, arg);
+                        break;
+                    default:
+                        Object[] args = serializer.deserialize(in, GenericArrayTypeImpl.make(Object.class));
+                        returnValue = ReflectionUtils.invokeMethod(method, target, args);
+                        break;
+                }
             }
-        }
-        if (Objects.nonNull(returnValue)) {
-            try (OutputStream os = res.getOutputStream()) {
-                serializer.serialize(returnValue, os);
+            if (Objects.nonNull(returnValue)) {
+                try (OutputStream os = response.getOutputStream()) {
+                    serializer.serialize(returnValue, os);
+                }
             }
+        } else {
+            response.setStatus(204);
         }
     }
 
